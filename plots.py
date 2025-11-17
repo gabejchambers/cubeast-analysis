@@ -3,6 +3,17 @@ import numpy as np
 import os
 import re
 import pandas as pd
+import webbrowser
+import http.server
+import socketserver
+import threading
+
+try:
+    import plotly.graph_objects as go
+    PLOTLY_AVAILABLE = True
+except Exception:
+    go = None
+    PLOTLY_AVAILABLE = False
 
 
 # Map of scatterable columns to descriptive titles (module-level)
@@ -147,3 +158,104 @@ def graph_column(df, column, convert_ms=True, show=True):
 
     if show:
         plt.show()
+
+
+def fig_from_series(series, title, convert_ms=True):
+    """Return a Plotly Figure for given pandas Series (convert_ms optional)."""
+    if not PLOTLY_AVAILABLE:
+        raise RuntimeError("Plotly is required for interactive figures. Install with `pip install plotly`.")
+
+    y = pd.to_numeric(series, errors='coerce').dropna().astype(float).values
+    if convert_ms:
+        y = y / 1000.0
+
+    x = np.arange(len(y))
+    if len(x) == 0:
+        raise ValueError("No numeric data to plot")
+
+    # best-fit line
+    coeffs = np.polyfit(x, y, 1)
+    fit_y = np.polyval(coeffs, x)
+    delta = coeffs[0] * (len(x) - 1)
+
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x, y=y, mode='markers', name='data', marker=dict(opacity=0.7)))
+    fig.add_trace(go.Scatter(x=x, y=fit_y, mode='lines', name=f'Best fit: y={coeffs[0]:.4f}x+{coeffs[1]:.4f}', line=dict(color='red')))
+
+    # annotation for delta in top-left (paper coords)
+    fig.update_layout(
+        title=title,
+        xaxis_title='Index',
+        yaxis_title='Time (s)' if convert_ms else 'Value',
+        annotations=[dict(text=f"Best-fit change: {delta:.2f} s", x=0.01, y=0.99, xref='paper', yref='paper', showarrow=False, bgcolor='white')]
+    )
+
+    return fig
+
+
+def save_interactive_plots(df, out_dir='interactive_plots', convert_ms=True, save_individual=True):
+    """Save interactive Plotly HTMLs for all columns in SCATTERABLE_COLS and produce a single index.html.
+
+    - `out_dir`: folder to write HTML files
+    - `save_individual`: if True, write per-column full HTML files; always writes combined `index.html`.
+    """
+    if not PLOTLY_AVAILABLE:
+        raise RuntimeError("Plotly is required for interactive plots. Install with `pip install plotly`.")
+
+    os.makedirs(out_dir, exist_ok=True)
+
+    fragments = []
+    for col, title in SCATTERABLE_COLS.items():
+        if col not in df.columns:
+            continue
+        series = df[col]
+        try:
+            fig = fig_from_series(series, title, convert_ms=convert_ms)
+        except Exception as e:
+            print(f"Skipping {col}: {e}")
+            continue
+
+        safe_name = re.sub(r'[<>:\\"/\\|?*]', '', str(col)).replace(' ', '_')
+        if save_individual:
+            individual_path = os.path.join(out_dir, f"{safe_name}.html")
+            fig.write_html(individual_path, full_html=True, include_plotlyjs='cdn')
+
+        # append fragment (include CDN for safety so each fragment is self-contained)
+        fragment = fig.to_html(full_html=False, include_plotlyjs='cdn')
+        fragments.append(f"<h2>{title}</h2>\n" + fragment)
+
+    if len(fragments) == 0:
+        raise RuntimeError("No interactive plots were generated (no matching columns found).")
+
+    index_path = os.path.join(out_dir, 'index.html')
+    with open(index_path, 'w', encoding='utf8') as fh:
+        fh.write('<!doctype html>\n<html>\n<head>\n<meta charset="utf-8"/>\n')
+        fh.write('<title>Interactive Plots</title>\n</head>\n<body>\n')
+        fh.write('<div style="max-width:1000px;margin:auto;">\n')
+        fh.write('\n<hr/>\n'.join(fragments))
+        fh.write('\n</div>\n</body>\n</html>')
+
+    return index_path
+
+
+def serve_interactive(out_dir='interactive_plots', port=8000, open_browser=True):
+    """Serve the `out_dir` folder on localhost using a simple HTTP server and open the index in a browser.
+
+    This function blocks until interrupted (Ctrl+C).
+    """
+    index_path = os.path.join(os.getcwd(), out_dir, 'index.html')
+    if not os.path.exists(index_path):
+        raise FileNotFoundError(f"{index_path} not found. Run save_interactive_plots first.")
+
+    # serve from out_dir
+    handler = http.server.SimpleHTTPRequestHandler
+    os.chdir(out_dir)
+    with socketserver.TCPServer(("", port), handler) as httpd:
+        url = f"http://localhost:{port}/index.html"
+        if open_browser:
+            threading.Timer(1.0, lambda: webbrowser.open(url)).start()
+        print(f"Serving {out_dir} at {url} (Ctrl+C to stop)")
+        try:
+            httpd.serve_forever()
+        except KeyboardInterrupt:
+            print("Server stopped.")
