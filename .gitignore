@@ -32,8 +32,7 @@ Thumbs.db
 
 # Images
 *.png
-/interactive_plots/*
-./interactive_plots/*
+interactive_plots/
 
 # Solves
 *.csv

@@ -179,14 +179,18 @@ def fig_from_series(series, title, convert_ms=True):
     delta = coeffs[0] * (len(x) - 1)
 
     fig = go.Figure()
-    fig.add_trace(go.Scatter(x=x, y=y, mode='markers', name='data', marker=dict(opacity=0.7)))
+    fig.add_trace(go.Scatter(x=x, y=y, mode='markers', name='solve', marker=dict(opacity=0.7)))
     fig.add_trace(go.Scatter(x=x, y=fit_y, mode='lines', name=f'Best fit: y={coeffs[0]:.4f}x+{coeffs[1]:.4f}', line=dict(color='red')))
 
     # annotation for delta in top-left (paper coords)
     fig.update_layout(
         title=title,
-        xaxis_title='Index',
+        xaxis_title='Solve #',
         yaxis_title='Time (s)' if convert_ms else 'Value',
+        # place the legend horizontally below the plot
+        legend=dict(orientation='h', yanchor='bottom', y=-0.35, x=0.5, xanchor='center'),
+        # increase bottom margin so the legend doesn't overlap the plot area
+        margin=dict(b=120),
         annotations=[dict(text=f"Best-fit change: {delta:.2f} s", x=0.01, y=0.99, xref='paper', yref='paper', showarrow=False, bgcolor='white')]
     )
 

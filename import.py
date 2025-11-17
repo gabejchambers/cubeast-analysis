@@ -13,15 +13,8 @@ def main():
     df = load_data(file_path)
     df = clean_data(df)
     
-    # Optional plots
-    # Plot total solve time (assumes a 'time' column in ms)
-    for col in SCATTERABLE_COLS:
-        try:
-            graph_column(df, col)
-        except Exception as e:
-            print(f"Could not plot '{col}' column: {e}")
-
-    plot_histogram(df)
+    # Interactive export/serve will be attempted below; do not show
+    # Matplotlib popups here to avoid opening plots one-by-one.
 
     # Try to save interactive plots and serve them on localhost
     try:
