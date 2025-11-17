@@ -8,7 +8,7 @@ from plots import save_interactive_plots, serve_interactive
 # ============================
 
 def main():
-    file_path = "solves (3).csv"  # <-- your CSV path
+    file_path = "solves.csv"  # <-- your CSV path
 
     df = load_data(file_path)
     df = clean_data(df)
