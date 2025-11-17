@@ -116,6 +116,13 @@ def graph_column(df, column, convert_ms=True, show=True):
     coeffs = np.polyfit(x, y, 1)
     fit_y = np.polyval(coeffs, x)
     plt.plot(x, fit_y, color='red', linewidth=2, label=f'Best fit: y={coeffs[0]:.4f}x+{coeffs[1]:.4f}')
+    
+    # show the change over the data set in line of best fit (how much better or worse you've gotten)
+    n = len(x)
+    delta = coeffs[0] * (n - 1)   # units = same units as y (seconds if converted)
+    # Add the best-fit change as a legend entry so it won't be hidden by the plot
+    # Create an invisible artist with the label text; it will appear in the legend
+    plt.plot([], [], label=f"Best-fit change: {delta:.2f} s")
 
     # Use the mapping value as the exact title (fall back to column name)
     title = SCATTERABLE_COLS.get(column, column)
